@@ -2,16 +2,18 @@ import os
 import numpy as np
 from tqdm import tqdm
 
-import limap.base as _base
-import limap.merging as _mrg
-import limap.triangulation as _tri
-import limap.vplib as _vplib
-import limap.pointsfm as _psfm
-import limap.optimize as _optim
-import limap.runners as _runners
-import limap.util.io as limapio
-import limap.visualize as limapvis
+import limap.base as _base          # 基本操作
+import limap.merging as _mrg        # 数据融合
+import limap.triangulation as _tri  # 三角测量
+import limap.vplib as _vplib        # 视点处理？
+import limap.pointsfm as _psfm      # 点云生成
+import limap.optimize as _optim     # 优化
+import limap.runners as _runners    # 运行器
+import limap.util.io as limapio     # io输入输出操作
+import limap.visualize as limapvis  # 可视化
 
+# input参数：配置、图像集合、邻居图像(依靠colmap的三角测量共视信息)
+# output  ：输出的3D线条轨迹列表
 def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     '''
     Main interface of line triangulation over multi-view images.
@@ -24,11 +26,14 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     Returns:
         list[:class:`limap.base.LineTrack`]: list of output 3D line tracks
     '''
+    # step 0 设置运行配置，图像预处理
     print("[LOG] Number of images: {0}".format(imagecols.NumImages()))
+        # step 0.1 设置运行配置
     cfg = _runners.setup(cfg)
     detector_name = cfg["line2d"]["detector"]["method"]
     if cfg["triangulation"]["var2d"] == -1:
         cfg["triangulation"]["var2d"] = cfg["var2d"][detector_name]
+        # step 0.2 图像预处理（去畸变、调整大小）
     # undistort images
     if not imagecols.IsUndistorted():
         imagecols = _runners.undistort_images(imagecols, os.path.join(cfg["dir_save"], cfg["undistortion_output_dir"]), skip_exists=cfg["load_undistort"] or cfg["skip_exists"], n_jobs=cfg["n_jobs"])
@@ -39,10 +44,12 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     limapio.save_txt_imname_dict(os.path.join(cfg["dir_save"], 'image_list.txt'), imagecols.get_image_name_dict())
     limapio.save_npy(os.path.join(cfg["dir_save"], 'imagecols.npy'), imagecols.as_dict())
 
+    # step 1 通过sfm，从多视图图像中提取元信息
     ##########################################################
     # [A] sfm metainfos (neighbors, ranges)
     ##########################################################
-    sfminfos_colmap_folder = None
+    sfminfos_colmap_folder = None # 用于存储COLMAP的元信息文件夹路径
+    # 如果没有邻居视图的先验信息，表明要计算邻居视图信息和3D范围
     if neighbors is None:
         sfminfos_colmap_folder, neighbors, ranges = _runners.compute_sfminfos(cfg, imagecols)
     else:

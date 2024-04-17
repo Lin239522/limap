@@ -106,6 +106,13 @@ def undistort_images(imagecols, output_dir, fname="image_collection_undistorted.
     limapio.save_npy(os.path.join(output_dir, fname), imagecols_undistorted)
     return imagecols_undistorted
 
+# 通过colmap的特征点三角化的结果,计算邻居图像和robust 3D ranges
+#  input : cfg      -设置colmap相关参数，比如特征点提取的方法
+#          imagecols-去畸变、调整大小过的图像集合
+#  return: colmap_output_path - 存放colmap中的重建结果（sparse、database等）
+#          neighbors          - 每个图像的邻居图像（用dict映射）
+#          ranges             - 所重建点云的范围（xyz最小坐标 ， xyz最大坐标）
+        
 def compute_sfminfos(cfg, imagecols, fname="metainfos.txt"):
     """
     Compute visual neighbors and robust 3D ranges from COLMAP point triangulation.
@@ -119,6 +126,7 @@ def compute_sfminfos(cfg, imagecols, fname="metainfos.txt"):
         ranges (pair of :class:`np.array`, each of shape (3,)): robust 3D ranges for the scene computed from the sfm point cloud.
     """
     import limap.pointsfm as _psfm
+    # load_meta = FLASE(defalt) : 非加载元数据，通过colmap计算neighbors和ranges
     if not cfg["load_meta"]:
         # run colmap sfm and compute neighbors, ranges
         colmap_output_path = os.path.join(cfg["dir_save"], cfg["sfm"]["colmap_output_path"])
@@ -129,6 +137,8 @@ def compute_sfminfos(cfg, imagecols, fname="metainfos.txt"):
         neighbors, ranges = _psfm.compute_metainfos(cfg["sfm"], model, n_neighbors=cfg["n_neighbors"])
         fname_save = os.path.join(cfg["dir_save"], fname)
         limapio.save_txt_metainfos(fname_save, neighbors, ranges)
+    
+    # load_meta = TRUE : 从文件中加载元数据 neighbors和ranges
     else:
         # load from precomputed info
         colmap_output_path = os.path.join(cfg["dir_load"], cfg["sfm"]["colmap_output_path"])

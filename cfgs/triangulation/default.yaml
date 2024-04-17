@@ -13,7 +13,7 @@ n_neighbors: 20
 use_cuda: True
 visualize: True
 max_image_dim: 1600
-skip_exists: False
+skip_exists: False           # skip_exists这是一个非常有用的选项，可以避免在每次传递中重复运行基于点的 SfM 和线检测/描述。
 output_dir: null 
 output_folder: "finaltracks"
 load_dir: null
