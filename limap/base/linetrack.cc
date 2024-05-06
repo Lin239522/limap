@@ -64,6 +64,7 @@ LineTrack::LineTrack(py::dict dict) {
     ASSIGN_PYDICT_ITEM(dict, active, bool)
 }
 
+// 返回一个包含所有图像ID的有序列表，通常用于确定优化处理的顺序
 std::vector<int> LineTrack::GetSortedImageIds() const {
     std::set<int> image_ids;
     for (int i = 0; i < image_id_list.size(); ++i) {
@@ -302,9 +303,9 @@ void ComputeLineWeights(const LineTrack& track,
                         std::vector<double>& weights)
 {
     weights.clear();
-    for (size_t i = 0; i < track.count_lines(); ++i) {
+    for (size_t i = 0; i < track.count_lines(); ++i) {//遍历该3D线段对应的每一条2D线段，计算权重
         double length = track.line2d_list[i].length();
-        double weight = length / 30.0;
+        double weight = length / 30.0;                // 这里2D线段越长，代表该视图拍摄线段接近于正视拍摄，权重越大（在优化该3D线段时越有话语权）
         weights.push_back(weight);
     }
 }

@@ -31,7 +31,7 @@ sfm:
         range_robust: [0.05, 0.95]
         k_stretch: 1.25
     hloc:
-        descriptor: "superpoint_aachen"
+        descriptor: "superpoint_aachen"      # 特征提取和匹配用的是什么
         matcher: "NN-superpoint"
 
 ##############################

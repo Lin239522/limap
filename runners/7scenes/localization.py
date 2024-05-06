@@ -153,6 +153,7 @@ def main():
         p2ds, p3ds, inliers = _runners.get_hloc_keypoints_from_log(hloc_logs, img_id_to_name[qid], ref_sfm)
         point_correspondences[qid] = {'p2ds': p2ds, 'p3ds': p3ds, 'inliers': inliers}
 
+    # NOTICE line_localization ：点线定位的包装器 它首先对图像集合 ( limap.base.ImageCollection) 进行线条检测、提取和匹配，然后调用pl_estimate_absolute_pose()本地化每个查询图像。
     final_poses = _runners.line_localization(
         cfg, imagecols_train, imagecols_query, point_correspondences, linetracks_db, retrieval, results_joint, img_name_dict=img_id_to_name)
 

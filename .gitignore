@@ -2,6 +2,7 @@
 /dist/
 cmake-build-*
 *.egg-info/
+/e1-3m_output/
 
 *.npy
 *.png

@@ -37,7 +37,7 @@ public:
 
     // point geometric config
     std::shared_ptr<ceres::LossFunction> point_geometric_loss_function;
-    double lw_point = 0.1;
+    double lw_point = 0.1;      // 点优化的权重
 
     // functions
     void set_constant_camera() {

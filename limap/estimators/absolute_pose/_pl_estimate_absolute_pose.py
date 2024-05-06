@@ -4,6 +4,7 @@ import limap.estimators as _estimators
 import limap.base as _base
 import numpy as np
 
+# NOTICE 点线定位的主要函数！
 def _pl_estimate_absolute_pose(cfg, l3ds, l3d_ids, l2ds, p3ds, p2ds, camera, campose=None,
                                inliers_line=None, inliers_point=None, jointloc_cfg=None, silent=True, logger=None):
     if jointloc_cfg is None:

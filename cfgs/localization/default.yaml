@@ -12,7 +12,7 @@ use_tmp: False
 n_visible_views: 4
 n_neighbors: 20 
 use_cuda: True
-visualize: True
+visualize: True        # 可视化
 max_image_dim: 1600
 skip_exists: False
 output_dir: null 
@@ -133,7 +133,7 @@ var2d: # in pixels
 ##############################
 # triangulation config
 triangulation:
-    use_exhaustive_matcher: False
+    use_exhaustive_matcher: False        # 不进行穷尽匹配
     use_endpoints_triangulation: False
     add_halfpix: False
     min_length_2d: 0.0 # in pixels
@@ -178,16 +178,16 @@ triangulation:
         th_sv_num_supports: 3
         th_overlap: 0.5
         th_overlap_num_supports: 3
-    use_vp: False 
+    use_vp: False             # 使用视点
     vpdet_config:
         min_length: 40
         inlier_threshold: 1.0
         min_num_supports: 10
-    use_pointsfm:
+    use_pointsfm:    # 是否使用colmap进行点特征的SFM
         enable: false
         colmap_folder: null
-        reuse_sfminfos_colmap: true
-        use_triangulated_points: true
+        reuse_sfminfos_colmap: true    # 是否使用line_triangulation中，第一步sfminfos_colmap的colmap模型
+        use_triangulated_points: true  # 是否使用 COLMAP 三维重建结果中的三角化点
         use_neighbors: true 
     disable_many_points_triangulation: false
     disable_one_point_triangulation: false
@@ -196,11 +196,12 @@ triangulation:
 
 ##############################
 # geometric refinement config
+# 可以通过这里配置优化时候的参数
 refinement:
     disable: False
-    constant_intrinsics: True
+    constant_intrinsics: True           # 不优化相机内参
     constant_principal_point: True
-    constant_pose: True
+    constant_pose: True                 # 不优化相机外参
     constant_line: False
     min_num_images: 4
     num_outliers_aggregator: 2

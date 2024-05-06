@@ -12,20 +12,24 @@
 namespace limap {
 
 // line projection (camera frame) in plucker coordinate
+// 将线段由相机坐标系转换到像素坐标系
 template <typename T>
 void Line_WorldToImage(const T* kvec, const T* mvec, T* coor) {
     // K * [m]x * K.transpose()
+    // step [处理直线的矩向量mvec] 构造由mvec衍生的“斜对称矩阵”，在三维空间中常用于表示向量的“外积”
     Eigen::Matrix<T, 3, 3> mskew;
     mskew(0, 0) = T(0.0); mskew(0, 1) = -mvec[2]; mskew(0, 2) = mvec[1];
     mskew(1, 0) = mvec[2]; mskew(1, 1) = T(0.0); mskew(1, 2) = -mvec[0];
     mskew(2, 0) = -mvec[1]; mskew(2, 1) = mvec[0]; mskew(2, 2) = T(0.0);
 
+    // step 构建相机内参矩阵
     Eigen::Matrix<T, 3, 3> K;
     K(0, 0) = kvec[0]; K(0, 1) = T(0.0); K(0, 2) = kvec[2];
     K(1, 0) = T(0.0); K(1, 1) = kvec[1]; K(1, 2) = kvec[3];
     K(2, 0) = T(0.0); K(2, 1) = T(0.0); K(2, 2) = T(1.0);
     Eigen::Matrix<T, 3, 3> coor_skew = K * mskew * K.transpose();
 
+    // step 归一化处理
     coor[0] = coor_skew(2, 1);
     coor[1] = coor_skew(0, 2);
     coor[2] = coor_skew(1, 0);
@@ -38,18 +42,25 @@ void Line_WorldToImage(const T* kvec, const T* mvec, T* coor) {
 template <typename T>
 void Line_WorldToPixel(const T* kvec, const T* qvec, const T* tvec, const T* dvec, const T* mvec, T* coor) {
     // R * [m]x * R.transpose() - t * (R * d).transpose() + (R * d) * t.transpose();
+    // step 1. 将四元数qvec转为旋转矩阵R
     T R_pt[3 * 3];
     ceres::QuaternionToRotation(qvec, R_pt);
     Eigen::Map<Eigen::Matrix<T, 3, 3, Eigen::RowMajor>> R(R_pt);
+    // step 2 将传入的指针转为Eigen库能操作的向量形式  tvec(相机平移向量3维)  dvec(直线方向向量3维)
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> t(tvec);
     Eigen::Map<const Eigen::Matrix<T, 3, 1>> d(dvec);
 
+    // step 3 [处理直线的矩向量mvec] 构造由mvec衍生的“斜对称矩阵”，在三维空间中常用于表示向量的“外积”
+    // 注意：m是怎么计算的:选直线上两点x/y，m=x向量和y向量的外积
     Eigen::Matrix<T, 3, 3> mskew;
     mskew(0, 0) = T(0.0); mskew(0, 1) = -mvec[2]; mskew(0, 2) = mvec[1];
     mskew(1, 0) = mvec[2]; mskew(1, 1) = T(0.0); mskew(1, 2) = -mvec[0];
     mskew(2, 0) = -mvec[1]; mskew(2, 1) = mvec[0]; mskew(2, 2) = T(0.0);
 
+    // step 4 计算转换后的坐标  
     Eigen::Matrix<T, 3, 3> mskew_transformed = R * mskew * R.transpose() - t * (R * d).transpose() + (R * d) * t.transpose();
+    
+    // step 5 [计算输出坐标]  直线在相机坐标系下的坐标
     T mvec_transformed[3];
     mvec_transformed[0] = mskew_transformed(2, 1);
     mvec_transformed[1] = mskew_transformed(0, 2);

@@ -60,45 +60,58 @@ def write_pairs_from_neighbors(output_path, image_path, neighbors, image_ids):
 
 def run_hloc_matches(cfg, image_path, db_path, keypoints=None, neighbors=None, imagecols=None):
     '''
+        特征点的提取与匹配
     Inputs:
     - neighbors: map<int, std::vector<int>> to avoid exhaustive matches
     - imagecols: optionally use the id mapping from _base.ImageCollection to do the match
     '''
+    # step 0 【路径&依赖库】设置路径，从hloc工具包中导入相关的模块
     image_path = Path(image_path)
-    from hloc import extract_features, match_features, pairs_from_exhaustive, reconstruction, triangulation
+    from hloc import extract_features, match_features, pairs_from_exhaustive, reconstruction, triangulation # （特征提取、匹配、重建等模块）
     outputs = Path(os.path.join(os.path.dirname(db_path), 'hloc_outputs'))
     sfm_dir = Path(os.path.join(outputs, "sfm"))
+    
+    # step 1 【配置】配置特征描述符 和匹配器
     feature_conf = extract_features.confs[cfg["descriptor"]]
     if cfg["descriptor"] == "sift":
-        # make sift consistent with colmap
+        # make sift consistent with colmap # 如果描述符是SIFT，则设置sift相关参数值和colmap的一致
         feature_conf["model"]["options"] = dict()
         feature_conf["model"]["options"]["first_octave"] = -1
         feature_conf["model"]["options"]["peak_threshold"] = 0.02 / 3
     matcher_conf = match_features.confs[cfg["matcher"]]
 
     # feature extraction
+    # step 2 【特征提取】 
+    # 如果提供了keypoints，且描述符为 "superpoint"，则调用对应的特征提取函数。
     if keypoints is not None and keypoints != []:
         if cfg["descriptor"][:10] != "superpoint":
             raise ValueError("Error! Non-superpoint feature extraction is unfortunately not supported in the current implementation.")
         # run superpoint
         from limap.point2d import run_superpoint
         feature_path = run_superpoint(feature_conf, image_path, outputs, keypoints=keypoints)
+    
+    # 如果没有 keypoints 或使用其他描述符，则执行标准的特征提取流程。
     else:
         feature_path = extract_features.main(feature_conf, image_path, outputs)
 
     # feature matching
+    # step 3 【特征匹配】
+        # step 3.1 如果未提供 neighbors 或 imagecols，执行穷尽匹配。
     if neighbors is None or imagecols is None:
         # run exhaustive matches
         sfm_pairs = outputs / "pairs-exhaustive.txt"
         features_path = outputs / (feature_conf["output"] + '.h5')
         match_path = pairs_from_exhaustive.main(sfm_pairs, features=features_path)
+    
+        # step 3.2 如果提供了 neighbors 和 imagecols，则基于邻居关系执行匹配。
     else:
         # run matches on neighbors
         sfm_pairs = outputs / "pairs-from-neighbors.txt"
         write_pairs_from_neighbors(sfm_pairs, image_path, neighbors, imagecols.get_img_ids())
     match_path = match_features.main(matcher_conf, sfm_pairs, feature_conf["output"], outputs)
     sfm_dir.mkdir(parents=True, exist_ok=True)
-    reconstruction.create_empty_db(db_path)
+    # step 4 准备三维重建数据库
+    reconstruction.create_empty_db(db_path) # 创建空数据库，导入图像和特征，以及特征匹配结果。
     if imagecols is None:
         reconstruction.import_images(image_dir=image_path, database_path=db_path)
     else:
@@ -107,8 +120,10 @@ def run_hloc_matches(cfg, image_path, db_path, keypoints=None, neighbors=None, i
     image_ids = reconstruction.get_image_ids(db_path)
     reconstruction.import_features(image_ids, db_path, feature_path)
     reconstruction.import_matches(image_ids, db_path, sfm_pairs, match_path, None, None)
+    # step 5 三角测量和几何验证(为后面的三维重建做准备？)（后面是纯线的重建还是点&线的重建？）
     triangulation.estimation_and_geometric_verification(db_path, sfm_pairs)
 
+# TODO 在实验中应该是不知道图像的pose，
 def run_colmap_sfm(cfg, imagecols, output_path='tmp/tmp_colmap', keypoints=None, skip_exists=False, map_to_original_image_names=True, neighbors=None):
     ### set up path
     if not os.path.exists(output_path):
@@ -160,16 +175,24 @@ def run_colmap_sfm(cfg, imagecols, output_path='tmp/tmp_colmap', keypoints=None,
         colmap_utils.write_images_binary(colmap_images, fname_images_bin)
 
 def run_colmap_sfm_with_known_poses(cfg, imagecols, output_path='tmp/tmp_colmap', keypoints=None, skip_exists=False, map_to_original_image_names=False, neighbors=None):
+    '''
+    已知相机位姿的情况下 运行colmap
+    '''
     ### set up path
-    db_path = os.path.join(output_path, 'db.db')
-    image_path = os.path.join(output_path, 'images')
-    model_path = os.path.join(output_path, 'sparse', 'reference_model')
-    point_triangulation_path = os.path.join(output_path, 'sparse')
+    # step 1 准备文件路径、文件夹、图像
+        # step 1.1 【准备】设置路径  
+    db_path = os.path.join(output_path, 'db.db')                        # database路径
+    image_path = os.path.join(output_path, 'images')                    # 图像路径
+    model_path = os.path.join(output_path, 'sparse', 'reference_model') # 稀疏重建模型路径？
+    point_triangulation_path = os.path.join(output_path, 'sparse')      # 三角测量路径
 
     ### initialize sparse folder
-    if skip_exists and os.path.exists(point_triangulation_path):
+        # step 1.2 【准备】(1)看是否要跳过下面的点云重建过程，(2)清理文件夹
+        # 如果skip_exists且点云三角化路径已经存在，则下面的colmap点云重建都不再进行了，直接返回
+    if skip_exists and os.path.exists(point_triangulation_path): 
         print("[COLMAP] Skipping point triangulation")
         return Path(point_triangulation_path)
+        # 清理结果输出文件夹  
     if os.path.exists(output_path):
         shutil.rmtree(output_path)
     if not os.path.exists(output_path):
@@ -181,6 +204,7 @@ def run_colmap_sfm_with_known_poses(cfg, imagecols, output_path='tmp/tmp_colmap'
         os.makedirs(model_path)
 
     ### copy images to tmp folder
+        # step 1.3 【准备】复制imagecols(参与重建的图像)到临时文件夹（不影响原始数据）
     keypoints_in_order = []
     imagecols_tmp = copy.deepcopy(imagecols)
     for idx, img_id in enumerate(imagecols.get_img_ids()):
@@ -192,13 +216,15 @@ def run_colmap_sfm_with_known_poses(cfg, imagecols, output_path='tmp/tmp_colmap'
         imagecols_tmp.change_image_name(img_id, 'image{0:08d}.png'.format(img_id))
 
     # feature extraction and matching
+    # step 2 【特征提取和匹配】
     run_hloc_matches(cfg["hloc"], image_path, Path(db_path), keypoints=keypoints_in_order, neighbors=neighbors, imagecols=imagecols_tmp)
 
     # write colmap model from imagecols
+    # step 3 (此函数是已知相机pose的情况)将相关信息写为 cameras.txt images.txt points3D.txt
     convert_imagecols_to_colmap(imagecols_tmp, model_path)
 
     ### [COLMAP] point triangulation
-    # point triangulation
+    # step 4 三角化point triangulation
     cmd = ['colmap', 'point_triangulator',
            '--database_path', db_path,
            '--image_path', image_path,
@@ -206,7 +232,7 @@ def run_colmap_sfm_with_known_poses(cfg, imagecols, output_path='tmp/tmp_colmap'
            '--output_path', point_triangulation_path]
     subprocess.run(cmd, check=True)
 
-    # map to original image names
+    # map to original image names 映射回原始图像名字
     if map_to_original_image_names:
         fname_images_bin = os.path.join(point_triangulation_path, "images.bin")
         colmap_images = colmap_utils.read_images_binary(fname_images_bin)

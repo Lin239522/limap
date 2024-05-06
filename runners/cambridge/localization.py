@@ -66,6 +66,7 @@ def parse_config():
     return cfg, args
 
 def main():
+    # 点检测、匹配、三角测量（使用 hloc）、线检测、匹配和三角测量的整个流程，最后执行数据集的视觉定位。
     cfg, args = parse_config()
     cfg = _runners.setup(cfg)
     scene_id = os.path.basename(cfg['vsfm_path'])

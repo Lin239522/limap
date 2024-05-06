@@ -117,17 +117,23 @@ void HybridBAEngine::ParameterizeLines() {
         }
     }
 }
-
+// NOTICE 设置每个3D点的残差 - 将该3D点对应的所有2D点的重投影误差加入优化问题中
 void HybridBAEngine::AddPointGeometricResiduals(const int track_id) {
+    // 如果点的权重 <= 0，则此函数不进行任何操作，直接返回
     if (config_.lw_point <= 0)
         return;
-    const PointTrack& track = point_tracks_.at(track_id);
+    // step 1 [获取点轨迹] 根据track_id，获取点轨迹 （PointTrack代表了一个3D点在多个图像中的观测信息）
+    const PointTrack& track = point_tracks_.at(track_id);  // 根据ID来访问点
+    // step 2 [获取损失函数] 从配置中获取损失函数（防止离群点对整体估计的影响）
     ceres::LossFunction* loss_function = config_.point_geometric_loss_function.get();
-    for (size_t i = 0; i < track.count_images(); ++i) {
-        int img_id = track.image_id_list[i];
-        int model_id = imagecols_.camview(img_id).cam.ModelId();
-        V2D p2d = track.p2d_list[i];
+    // step 3 [遍历所有图像] 遍历该3D点对应的图像们，将对应的2D点重投影误差加入残差项
+    for (size_t i = 0; i < track.count_images(); ++i) { 
+        // step 3.1 获取图像信息
+        int img_id = track.image_id_list[i];                        // 图像ID
+        int model_id = imagecols_.camview(img_id).cam.ModelId();    // 当前图像对应的相机模型ID
+        V2D p2d = track.p2d_list[i];                                // 图像中点的二维投影
 
+        // step 3.2 选择并创建成本函数cost_function（PointGeometricRefinementFunctor 计算重投影误差）
         ceres::CostFunction* cost_function = nullptr;
         switch (model_id) {
 #define CAMERA_MODEL_CASE(CameraModel) \
@@ -137,8 +143,9 @@ void HybridBAEngine::AddPointGeometricResiduals(const int track_id) {
             LIMAP_UNDISTORTED_CAMERA_MODEL_SWITCH_CASES
 #undef CAMERA_MODEL_CASE
         }
-         
+        // step 3.3 根据权重缩放损失函数：新损失函数scaled_loss_function = 原始损失函数 * 点的权重
         ceres::LossFunction* scaled_loss_function = new ceres::ScaledLoss(loss_function, config_.lw_point, ceres::DO_NOT_TAKE_OWNERSHIP);
+        // step 3.4 [添加残差块] 将[成本函数cost_function]和[损失函数scaled_loss_function]添加到BA问题里，连接到相应的参数块（点的3D坐标、相机参数、相机pose）
         ceres::ResidualBlockId block_id = problem_->AddResidualBlock(cost_function, scaled_loss_function, 
                                                                      points_.at(track_id).data(),
                                                                      imagecols_.params_data(img_id), imagecols_.qvec_data(img_id), imagecols_.tvec_data(img_id));
@@ -146,27 +153,33 @@ void HybridBAEngine::AddPointGeometricResiduals(const int track_id) {
     }
 }
 
+// NOTICE 设置每个3D线的残差，添加到优化问题中
 void HybridBAEngine::AddLineGeometricResiduals(const int track_id) {
+    // step 1 [获取线轨迹] 根据track_id，获取线轨迹 （LineTrack代表了一条3D线段在多个2D图像中的观测信息）
     const LineTrack& track = line_tracks_.at(track_id);
+    // step 2 [获取损失函数] 从配置中获取用于线段几何残差的损失函数
     ceres::LossFunction* loss_function = config_.line_geometric_loss_function.get();
 
-    // compute line weights
-    auto idmap = track.GetIdMap();
+    // step 3 [计算线权重] 为该3D线段对应的每一条2D线段设置权重
+    auto idmap = track.GetIdMap();  // std::map<int, std::vector<int>> - <图像ID,该图像中的2D线段ID>
     std::vector<double> weights;
-    ComputeLineWeights(track, weights);
+    ComputeLineWeights(track, weights); // 为该3D线段对应的每一条2D线段设置权重，2D线段越长，表示越接近于正视拍摄，权重越大
 
-    // add to problem for each supporting image (for each supporting line) 
+    // add to problem for each supporting image (for each supporting line)
+    // step 4 [遍历所有图像] 遍历该3D线段对应的图像们，将对应的2D线重投影误差加入残差项
     auto& minimal_line = lines_.at(track_id);
-    std::vector<int> image_ids = track.GetSortedImageIds();
+    std::vector<int> image_ids = track.GetSortedImageIds();  // 调整3D线段对应图像的优化顺序
     for (auto it1 = image_ids.begin(); it1 != image_ids.end(); ++it1) {
-        int img_id = *it1;
-        int model_id = imagecols_.camview(img_id).cam.ModelId();
-        const auto& ids = idmap.at(img_id);
+        // step 4.1 获取图像信息
+        int img_id = *it1;                                       // 当前图像ID
+        int model_id = imagecols_.camview(img_id).cam.ModelId(); // 当前图像对应的相机模型ID
+        const auto& ids = idmap.at(img_id);                      // 当前图像中所有2D线段的索引
+        // step 4.2 [遍历图像中的每条2D线段] 
         for (auto it2 = ids.begin(); it2 != ids.end(); ++it2) {
-            const Line2d& line = track.line2d_list[*it2];
-            double weight = weights[*it2];
+            const Line2d& line = track.line2d_list[*it2];         // 当前2D线段
+            double weight = weights[*it2];                        // 获取当前2D图像对应的权重
+            // step 4.2.1 选择并创建成本函数cost_function（PointGeometricRefinementFunctor 计算重投影误差）
             ceres::CostFunction* cost_function = nullptr;
-
             switch (model_id) {
 #define CAMERA_MODEL_CASE(CameraModel) \
     case CameraModel::kModelId:        \
@@ -176,40 +189,47 @@ void HybridBAEngine::AddLineGeometricResiduals(const int track_id) {
 #undef CAMERA_MODEL_CASE
             }
 
+            // step 4.2.2 根据权重缩放损失函数：新损失函数scaled_loss_function = 原始损失函数 * 该2D线段权重
             ceres::LossFunction* scaled_loss_function = new ceres::ScaledLoss(loss_function, weight, ceres::DO_NOT_TAKE_OWNERSHIP);
+            // step 4.2.3 [添加残差块] 将[成本函数cost_function]和[损失函数scaled_loss_function]添加到BA问题里，连接到相应的参数块（点的3D坐标、相机参数、相机pose）
             ceres::ResidualBlockId block_id = problem_->AddResidualBlock(cost_function, scaled_loss_function, 
-                                                                         minimal_line.uvec.data(), minimal_line.wvec.data(),
+                                                                         minimal_line.uvec.data(), minimal_line.wvec.data(),  // ? 线是怎么表示的？一个旋转四元数+一个2D向量？
                                                                          imagecols_.params_data(img_id), imagecols_.qvec_data(img_id), imagecols_.tvec_data(img_id));
         }
     }
 }
 
+// NOTICE 对应python文件中的ba_engine.SetUp() # 设置问题结构
 void HybridBAEngine::SetUp() {
-    // setup problem
+    // step 1 setup problem 初始化问题实例
     problem_.reset(new ceres::Problem(config_.problem_options));
 
-    // add residuals
-    // R1.1: point geometric residual
-    if (!config_.constant_point || !config_.constant_intrinsics || !config_.constant_pose) {
+    // step 2 add residuals 设置残差项
+        // step 2.1: 【点残差】point geometric residual 
+        // 如果配置不是将点、内参、和姿态都设置为常量，则遍历点轨迹（point_tracks_），为每个3D点添加几何残差。
+    if (!config_.constant_point || !config_.constant_intrinsics || !config_.constant_pose) { // 配置中point、pose、intrinsics中有一个为FALSE(需要优化)
         for (auto it = point_tracks_.begin(); it != point_tracks_.end(); ++it) {
             int point3d_id = it->first;
             AddPointGeometricResiduals(point3d_id);
         }
     }
-    // R1.2: line geometric residual
-    if (!config_.constant_line || !config_.constant_intrinsics || !config_.constant_pose) {
+        // step 2.2: 【线残差】line geometric residual
+        // 如果配置不是将线、内参、和姿态都设置为常量，则遍历线轨迹（line_tracks_），为每个线添加几何残差。
+    if (!config_.constant_line || !config_.constant_intrinsics || !config_.constant_pose) { // 配置中line、pose、intrinsics中有一个为FALSE(需要优化)
         for (auto it = line_tracks_.begin(); it != line_tracks_.end(); ++it) {
-            int line3d_id = it->first;
+            int line3d_id = it->first;                  // std::map<int, LineTrack> line_tracks_;
             AddLineGeometricResiduals(line3d_id);
         }
     }
 
-    // parameterization
+    // step 3 parameterization 参数化相机、点云、线条
     ParameterizeCameras();
     ParameterizePoints();
     ParameterizeLines();
 }
 
+//  对应python文件中的ba_engine.Solve() # 进行优化求解
+// NOTICE
 bool HybridBAEngine::Solve() {
     if (problem_->NumResiduals() == 0)
         return false;

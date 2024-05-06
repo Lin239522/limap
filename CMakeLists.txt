@@ -14,6 +14,7 @@ if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.1)
 endif()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -std=c++17 -std=gnu++17") # brute-force approach to make sure we are using C++17
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Include helper macros and commands, and allow the included file to override
 # the CMake policies in this file

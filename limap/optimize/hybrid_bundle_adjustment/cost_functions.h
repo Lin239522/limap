@@ -33,7 +33,7 @@ public:
         p2d_(p2d), params_(params), qvec_(qvec), tvec_(tvec) {}
     
     static ceres::CostFunction* Create(const V2D& p2d, const double* params = NULL, const double* qvec = NULL, const double* tvec = NULL) {
-        if (!params && !qvec && !tvec)
+        if (!params && !qvec && !tvec) // 当相机参数、相机旋转、相机平移都为NULL时（默认）
             return new ceres::AutoDiffCostFunction<PointGeometricRefinementFunctor, 2, 3, CameraModel::kNumParams, 4, 3>(new PointGeometricRefinementFunctor(p2d, NULL, NULL, NULL));
         else
             return new ceres::AutoDiffCostFunction<PointGeometricRefinementFunctor, 2, 3>(new PointGeometricRefinementFunctor(p2d, params, qvec, tvec));

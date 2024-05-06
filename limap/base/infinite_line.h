@@ -56,19 +56,21 @@ public:
     M4D matrix() const; // get Plucker matrix. [LINK] https://en.wikipedia.org/wiki/Pl%C3%BCcker_matrix 
 
     // data
-    V3D d; // direction
-    V3D m; // moment 
+    V3D d; // direction  三维向量-> 方向向量
+    V3D m; // moment     三维向量-> 矩
 };
 
 // minimal Plucker coordinate used for ceres optimization
 class MinimalInfiniteLine3d {
 public:
+    // 构造函数
     MinimalInfiniteLine3d() {}
     MinimalInfiniteLine3d(const Line3d& line): MinimalInfiniteLine3d(InfiniteLine3d(line)) {};
     MinimalInfiniteLine3d(const InfiniteLine3d& inf_line);
     MinimalInfiniteLine3d(const std::vector<double>& values);
     InfiniteLine3d GetInfiniteLine() const;
 
+    // 类的数据成员，表示直线的方向和位置信息
     V4D uvec; // quaternion vector for SO(3)
     V2D wvec; // homogenous vector for SO(2)
 };
