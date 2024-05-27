@@ -1,0 +1,33 @@
+Start loading COLMAP sparse reconstruction.
+Reconstruction loaded. (n_images = 28)
+Computing visual neighbors... (n_neighbors = 20)
+[LOG] Number of images: 28
+[LOG] Output dir: /home/wll/Project/LIMAP/limap/z_test_output
+[LOG] Loading dir: /home/wll/Project/LIMAP/limap/z_test_output
+[LOG] weight dir: /home/wll/.limap/models
+[LOG] Start undistorting images (n_images = 28)...
+[LOG] Start 2D line detection and description (detector = lsd, extractor = sold2, n_images = 28)...
+[LOG] Start matching 2D lines... (extractor = sold2, matcher = sold2, n_images = 28, n_neighbors = 20)
+step 4.1 
+
+step 4.2 
+
+step 4.3 
+
+step 4.4 
+
+step 4.5 
+
+Start multi-view triangulation...
+Start building line graph for clustering...
+Start computing line tracks...
+[08-05-2024 00:37:30 INFO ] # graph nodes: 4934
+[08-05-2024 00:37:30 INFO ] # graph edges: 26112
+[08-05-2024 00:37:30 INFO ] # tracks: 903
+[LOG] tracks after iterative remerging: 897 / 903
+Start loading COLMAP sparse reconstruction.
+Reconstruction loaded. (n_images = 28)
+cam_id:1/n
+final_pose->image_name:IMG0028.jpg/n
+!!!Result(P+L) Pose (qvec, tvec): [ 0.38626007  0.41248783  0.58935544 -0.57733623], [ 5.2707294  -0.0569053  -1.17087186]
+

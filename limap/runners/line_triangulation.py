@@ -1,7 +1,10 @@
 import os
 import numpy as np
 from tqdm import tqdm
+global view
 
+import cv2
+import limap.visualize
 import limap.base as _base          # 基本操作
 import limap.merging as _mrg        # 数据融合
 import limap.triangulation as _tri  # 三角测量
@@ -11,6 +14,23 @@ import limap.optimize as _optim     # 优化
 import limap.runners as _runners    # 运行器
 import limap.util.io as limapio     # io输入输出操作
 import limap.visualize as limapvis  # 可视化
+
+def on_EVENT_LBUTTONDOWN(event, x, y, flags, param):
+    custom_data = param[0]
+    image_path = custom_data['image_path']
+    if event == cv2.EVENT_LBUTTONDOWN:
+         # step 0 点击选中的像素
+        xy = "%f,%f" % (x, y)
+        print(f"-----------------------------------------------------------------")
+        print(f"LBUTTONDOWN sellect:{x} {y}")
+
+        # step 1  图上绘制
+        # 在图片上描点的时候，对关键点（point2D_X，point2D_Y）四舍五入然后描点，要不然没有办法描小数
+        cv2.circle(img, (round(x), round(y)), 1, (0, 0, 255), thickness=-1)  
+        point2d_xy = "point2d:%f %f" % (x, y)
+        cv2.putText(img, point2d_xy, (round(x)-100, round(y)-8), cv2.FONT_HERSHEY_PLAIN,
+                    1.0, (0, 0, 0), thickness=1)
+        cv2.imshow("image", img)
 
 # input参数：配置、图像集合、邻居图像(依靠colmap的三角测量共视信息)
 # output  ：输出的3D线条轨迹列表
@@ -77,6 +97,7 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     # [C] get line matches
     ##########################################################
     # 如果配置中不用“详尽匹配exhaustive_matcher”，才执行此步
+    # [LOG] Start matching 2D lines...
     if not cfg["triangulation"]["use_exhaustive_matcher"]:
         matches_dir = _runners.compute_matches(cfg, descinfo_folder, imagecols.get_img_ids(), neighbors)
 
@@ -85,21 +106,26 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     # [D] multi-view triangulation
     ##########################################################
         # step 4.1 初始三角化模块 Triangulator
+    print( f"step 4.1 \n")
     Triangulator = _tri.GlobalLineTriangulator(cfg["triangulation"]) # 依据cfg["triangulation"]初始化，用于后续的线段三角化任务
         # step 4.2 设置三维空间范围（从点重建中得到的）
+    print( f"step 4.2 \n")
         # os 用于约束线段的三维位置，使得三角化结果更准确
     Triangulator.SetRanges(ranges)
         # step 4.3 初始化三角化数据
+    print( f"step 4.3 \n")
     all_2d_lines = _base.get_all_lines_2d(all_2d_segs)
     Triangulator.Init(all_2d_lines, imagecols)# 用所有图像集合和提取的2D线段初始化
         # step 4.4 处理灭点
         # 如果启用灭点处理，则创建一个灭点检测器，用于检测所有图像的灭点
+    print( f"step 4.4 \n")
     if cfg["triangulation"]["use_vp"]:
         vpdetector = _vplib.get_vp_detector(cfg["triangulation"]["vpdet_config"], n_jobs = cfg["triangulation"]["vpdet_config"]["n_jobs"])
         vpresults = vpdetector.detect_vp_all_images(all_2d_lines, imagecols.get_map_camviews())
         Triangulator.InitVPResults(vpresults) # 灭点检测结果用于初始化三角化处理器，以便在三角化时考虑灭点信息，可能有助于深度估计等
         # step 4.5 使用COLMAP重建数据（可以重用sfminfos_colmap中的模型）
     # get 2d bipartites from pointsfm model
+    print( f"step 4.5 \n")
     if cfg["triangulation"]["use_pointsfm"]["enable"]:                      # 如果使用点重建
         # OS 根据配置情况，重新运行COLMAP或使用预先存在的COLMAP模型。
         # os A. 没有预先加载的colmap结果，则重新运行colmap
@@ -120,8 +146,10 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
                     input_neighbors = neighbors
                 _psfm.run_colmap_sfm_with_known_poses(cfg["sfm"], imagecols, output_path=colmap_output_path, skip_exists=cfg["skip_exists"], neighbors=input_neighbors)
                 colmap_model_path = os.path.join(colmap_output_path, "sparse")
-        # os B. 如果提供了预先加载的 COLMAP 结果路径，则直接使用该路径
+        # os B. 如果提供了预先加载的 COLMAP 结果路径，则直接使用该路径 
+        # NOTICE
         else:
+            print(f"step 4.6 \n")
             colmap_model_path = cfg["triangulation"]["use_pointsfm"]["colmap_folder"]
         # OS 使用 PyReadCOLMAP 读取 COLMAP 的重建结果。
         reconstruction = _psfm.PyReadCOLMAP(colmap_model_path)
@@ -161,6 +189,42 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     
     # TODO 这里加交互界面 linetracks
     # 1. 访问linetracks，让他们可视化
+        # 初始化相机视图
+    cam1,final_pose = _psfm.Readcam(cfg["colmap_path"])
+    # print(f"!!!Result(P+L) Pose (qvec, tvec): {final_pose.qvec}, {final_pose.tvec}\n") # 检验一下是不是最后一张图的
+    camview = _base.CameraView(cam1, final_pose)
+    # img = camview.read_image(set_gray=False)
+
+    final_img_id = imagecols.get_img_ids()[-1]
+    print(f"final_img_id:{final_img_id}") # 检验一下是不是最后一张图的
+
+    # camview = imagecols.camview(final_img_id)
+    image_path = imagecols.image_name(final_img_id)
+    # img = camview.read_image(set_gray = False)
+    # img = imagecols.read_image(final_img_id, set_gray=False)
+
+    print(f"image_path = {image_path}")
+    img = cv2.imread(image_path)
+    cv2.imshow("img", img)
+    cv2.waitKey(0)           # 【等待按键后】关闭窗口
+    cv2.destroyAllWindows()  # 关闭所有 OpenCV 创建的窗口
+    
+    # img = limap.visualize.draw_segments(img,all_2d_segs,(0,255,0))
+    for linetrack in linetracks:
+        if final_img_id in linetrack.image_id_list:
+            # 获取当前图像在LineTrack中的索引
+            index = linetrack.image_id_list.index(final_img_id)
+            # 获取对应的2D线段
+            l2d = linetrack.line2d_list[index]
+            l3d = linetrack.line
+            l2d_proj = l3d.projection(camview)
+            img = cv2.line(img, l2d_proj.start.astype(int), l2d_proj.end.astype(int), color=[0, 0, 255])
+    
+    cv2.imshow("img_segs", img)
+    cv2.waitKey(0)           # 【等待按键后】关闭窗口
+    cv2.destroyAllWindows()  # 关闭所有 OpenCV 创建的窗口
+    cv2.imwrite((cfg["output_dir"] / "img_segs.png").as_posix(), img)
+
     # 2. 通过鼠标点击，确定结构性线条
     # 3. 对结构性线条的linetracks.is_horizontal/linetracks.is_plumb进行修改
 
@@ -177,6 +241,10 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
         linetracks_map = ba_engine.GetOutputLineTracks(num_outliers=cfg["refinement"]["num_outliers_aggregator"])         # 获取优化后的线段轨迹
         linetracks = [track for (track_id, track) in linetracks_map.items()]    # 将优化后的linetracks由字典结构转为列表结构
 
+        pointtracks_map = ba_engine.GetOutputPointTracks()
+        pointtracks = [track for (track_id, track) in pointtracks_map.items()]    # 将优化后的linetracks由字典结构转为列表结构
+
+
     # step 6 输出及可视化
     ##########################################################
     # [F] output and visualization
@@ -184,6 +252,9 @@ def line_triangulation(cfg, imagecols, neighbors=None, ranges=None):
     # save tracks
         # 将线段轨迹以文本格式保存在指定的目录。n_visible_views=4 表示只保存那些在至少4个视图中可见的轨迹。
     limapio.save_txt_linetracks(os.path.join(cfg["dir_save"], "alltracks.txt"), linetracks, n_visible_views=4) 
+    # TODO 待修改↓存储点特征的代码
+    # limapio.save_txt_pointtracks(os.path.join(cfg["dir_save"], "pointtracks.txt"), pointtracks_map)
+
         #  将线段轨迹以及关联的配置信息、图像集和二维线段数据保存在特定的目录下，便于后续分析和验证。
     limapio.save_folder_linetracks_with_info(os.path.join(cfg["dir_save"], cfg["output_folder"]), linetracks, config=cfg, imagecols=imagecols, all_2d_segs=all_2d_segs)
         # 以OBJ形式保存三维线段

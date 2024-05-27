@@ -245,6 +245,26 @@ def save_txt_linetracks(fname, linetracks, n_visible_views=4):
                 f.write("{0} ".format(track.line_id_list[idx]))
             f.write("\n")
 
+# TODO 待修改
+def save_txt_pointtracks(fname, pointtracks_map):
+    '''
+    Save all the point tracks into a single .txt file in the format used in Project B.
+    '''
+    pointtracks = [track for (track_id, track) in pointtracks_map.items()]    # 将优化后的linetracks由字典结构转为列表结构
+
+    if not os.path.exists(os.path.dirname(fname)):
+        os.makedirs(os.path.dirname(fname))
+    with open(fname, 'w') as f:
+        f.write("# 3D point list with one line of data per point:\n")
+        f.write("#   POINT3D_ID, X, Y, Z,TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
+        f.write("# Number of points: {}\n".format(len(pointtracks)))
+        for point_id, point in enumerate(pointtracks):
+            f.write("{:.10f} {:.10f} {:.10f}".format(point.p[0], point.p[1], point.p[2]))
+            for i in range(len(point.image_id_list)):
+                f.write(" {} {}".format(point.image_id_list[i], point.p2d_id_list[i]))
+            f.write("\n")
+
+
 def save_folder_linetracks(folder, linetracks):
     if os.path.exists(folder):
         shutil.rmtree(folder)

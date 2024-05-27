@@ -31,8 +31,8 @@ sfm:
         range_robust: [0.05, 0.95]
         k_stretch: 1.25
     hloc:
-        descriptor: "superpoint_aachen"      # 特征提取和匹配用的是什么
-        matcher: "NN-superpoint"
+        descriptor: "sift"          #"superpoint_aachen"  "sift"       
+        matcher: "NN-ratio"         #"NN-superpoint"      "NN-ratio" 
 
 ##############################
 # line detection and matching config
@@ -43,13 +43,13 @@ line2d:
     save_l3dpp: False
     compute_descinfo: False
     detector: 
-        method: "deeplsd" # ["lsd", "sold2", "hawpv3", "tp_lsd", "deeplsd"]
+        method: "deeplsd" #"deeplsd" # ["lsd", "sold2", "hawpv3", "tp_lsd", "deeplsd"]
         skip_exists: False
     extractor: 
-        method: "wireframe" # ["sold2", "lbd", "l2d2", "linetr", "superpoint_endpoints", "wireframe"]
+        method: "wireframe" #"wireframe" # ["sold2", "lbd", "l2d2", "linetr", "superpoint_endpoints", "wireframe"]
         skip_exists: False
     matcher:
-        method: "gluestick" # ["sold2", "lbd", "l2d2", "linetr", "nn_endpoints", "superglue_endpoints", "gluestick"]
+        method: "gluestick" #"gluestick" # ["sold2", "lbd", "l2d2", "linetr", "nn_endpoints", "superglue_endpoints", "gluestick"]
         n_jobs: 1
         topk: 10
         skip_exists: False

@@ -400,9 +400,12 @@ void bind_linebase(py::module& m) {
     m.def("_GetLineSegmentFromInfiniteLine3d", py::overload_cast<const InfiniteLine3d&, const std::vector<CameraView>&, const std::vector<Line2d>&, const int>(&GetLineSegmentFromInfiniteLine3d), py::arg("inf_line"), py::arg("camviews"), py::arg("line2ds"), py::arg("num_outliers") = 2);
     m.def("_GetLineSegmentFromInfiniteLine3d", py::overload_cast<const InfiniteLine3d&, const std::vector<Line3d>&, const int>(&GetLineSegmentFromInfiniteLine3d), py::arg("inf_line"), py::arg("line3ds"), py::arg("num_outliers") = 2);
 }
-
+// 将 C++ 类 LineTrack 绑定到 Python 对象，使得可以在 Python 环境中直接使用 C++ 的 LineTrack 类
+// 和 C++ 中该类的定义是一致的
 void bind_linetrack(py::module& m) {
+    // step 1 初始化类LineTrack
     py::class_<LineTrack>(m, "LineTrack", "Associated line track across multi-view.")
+    // step 2 构造函数
         .def(py::init<>(), R"(
             Default constructor
         )")
@@ -416,10 +419,13 @@ void bind_linetrack(py::module& m) {
         .def(py::init<py::dict>(), R"(
             Constructor from a Python dict
         )", py::arg("dict"))
+    // step 3 成员函数
+    // 返回一个包含 LineTrack 对象数据的 Python 字典。
         .def("as_dict", &LineTrack::as_dict, R"(
             Returns:
                 dict: Python dict representation of this :class:`~limap.base.LineTrack`
         )")
+    // 序列化和反序列化
         .def(py::pickle(
             [](const LineTrack& input) { // dump
                 return input.as_dict();
@@ -428,6 +434,7 @@ void bind_linetrack(py::module& m) {
                 return LineTrack(dict);
             }
         ))
+    // step 4 属性
         .def_readwrite("line", &LineTrack::line, ":class:`~limap.base.Line3d`, the 3D line")
         .def_readonly("image_id_list", &LineTrack::image_id_list, "list[int], the associated image IDs")
         .def_readonly("line_id_list", &LineTrack::line_id_list, "list[int], IDs of supporting 2D lines within each image")
